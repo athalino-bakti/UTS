@@ -19,186 +19,182 @@ app.use(cors({
 }));
 
 // In-memory data store (replace with real database in production)
-let posts = [
+let tasks = [
   {
     id: '1',
-    title: 'Welcome to GraphQL',
-    content: 'This is our first GraphQL post with subscriptions!',
-    author: 'GraphQL Team',
+    title: 'Setup Project',
+    description: 'Initialize the task management project',
+    status: 'completed',
+    priority: 'high',
+    assignedTo: '1',
+    teamId: '1',
+    createdBy: '1',
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '2',
-    title: 'Real-time Updates',
-    content: 'Watch this space for real-time updates using GraphQL subscriptions.',
-    author: 'Development Team',
+    title: 'Design Database Schema',
+    description: 'Design the database schema for task management',
+    status: 'in_progress',
+    priority: 'high',
+    assignedTo: '2',
+    teamId: '1',
+    createdBy: '1',
     createdAt: new Date().toISOString(),
-  }
-];
-
-let comments = [
-  {
-    id: '1',
-    postId: '1',
-    content: 'Great introduction to GraphQL!',
-    author: 'John Doe',
-    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 ];
 
 // GraphQL type definitions
 const typeDefs = `
-  type Post {
-    id: ID!
-    title: String!
-    content: String!
-    author: String!
-    createdAt: String!
-    comments: [Comment!]!
+  enum TaskStatus {
+    todo
+    in_progress
+    completed
+    cancelled
+  }
+  
+  enum TaskPriority {
+    low
+    medium
+    high
+    urgent
   }
 
-  type Comment {
+  type Task {
     id: ID!
-    postId: ID!
-    content: String!
-    author: String!
+    title: String!
+    description: String
+    status: TaskStatus!
+    priority: TaskPriority!
+    assignedTo: String
+    teamId: String
+    createdBy: String!
     createdAt: String!
+    updatedAt: String!
   }
 
   type Query {
-    posts: [Post!]!
-    post(id: ID!): Post
-    comments(postId: ID!): [Comment!]!
+    tasks: [Task!]!
+    task(id: ID!): Task
+    tasksByUser(userId: String!): [Task!]!
+    tasksByTeam(teamId: String!): [Task!]!
+    tasksByStatus(status: TaskStatus!): [Task!]!
   }
 
   type Mutation {
-    createPost(title: String!, content: String!, author: String!): Post!
-    updatePost(id: ID!, title: String, content: String): Post!
-    deletePost(id: ID!): Boolean!
-    createComment(postId: ID!, content: String!, author: String!): Comment!
-    deleteComment(id: ID!): Boolean!
+    createTask(
+      title: String!
+      description: String
+      status: TaskStatus
+      priority: TaskPriority
+      assignedTo: String
+      teamId: String
+      createdBy: String!
+    ): Task!
+    
+    updateTask(
+      id: ID!
+      title: String
+      description: String
+      status: TaskStatus
+      priority: TaskPriority
+      assignedTo: String
+      teamId: String
+    ): Task!
+    
+    deleteTask(id: ID!): Boolean!
   }
 
   type Subscription {
-    postAdded: Post!
-    commentAdded: Comment!
-    postUpdated: Post!
-    postDeleted: ID!
+    taskAdded: Task!
+    taskUpdated: Task!
+    taskDeleted: ID!
   }
 `;
 
 // GraphQL resolvers
 const resolvers = {
   Query: {
-    posts: () => posts,
-    post: (_, { id }) => posts.find(post => post.id === id),
-    comments: (_, { postId }) => comments.filter(comment => comment.postId === postId),
-  },
-
-  Post: {
-    comments: (parent) => comments.filter(comment => comment.postId === parent.id),
+    tasks: () => tasks,
+    task: (_, { id }) => tasks.find(task => task.id === id),
+    tasksByUser: (_, { userId }) => tasks.filter(task => task.assignedTo === userId),
+    tasksByTeam: (_, { teamId }) => tasks.filter(task => task.teamId === teamId),
+    tasksByStatus: (_, { status }) => tasks.filter(task => task.status === status),
   },
 
   Mutation: {
-    createPost: (_, { title, content, author }) => {
-      const newPost = {
+    createTask: (_, { title, description, status, priority, assignedTo, teamId, createdBy }) => {
+      const newTask = {
         id: uuidv4(),
         title,
-        content,
-        author,
+        description: description || '',
+        status: status || 'todo',
+        priority: priority || 'medium',
+        assignedTo: assignedTo || null,
+        teamId: teamId || null,
+        createdBy,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      posts.push(newPost);
+      tasks.push(newTask);
       
       // Publish to subscribers
-      pubsub.publish('POST_ADDED', { postAdded: newPost });
+      pubsub.publish('TASK_ADDED', { taskAdded: newTask });
       
-      return newPost;
+      return newTask;
     },
 
-    updatePost: (_, { id, title, content }) => {
-      const postIndex = posts.findIndex(post => post.id === id);
-      if (postIndex === -1) {
-        throw new Error('Post not found');
+    updateTask: (_, { id, title, description, status, priority, assignedTo, teamId }) => {
+      const taskIndex = tasks.findIndex(task => task.id === id);
+      if (taskIndex === -1) {
+        throw new Error('Task not found');
       }
 
-      const updatedPost = {
-        ...posts[postIndex],
+      const updatedTask = {
+        ...tasks[taskIndex],
         ...(title && { title }),
-        ...(content && { content }),
+        ...(description !== undefined && { description }),
+        ...(status && { status }),
+        ...(priority && { priority }),
+        ...(assignedTo !== undefined && { assignedTo }),
+        ...(teamId !== undefined && { teamId }),
+        updatedAt: new Date().toISOString(),
       };
 
-      posts[postIndex] = updatedPost;
+      tasks[taskIndex] = updatedTask;
       
       // Publish to subscribers
-      pubsub.publish('POST_UPDATED', { postUpdated: updatedPost });
+      pubsub.publish('TASK_UPDATED', { taskUpdated: updatedTask });
       
-      return updatedPost;
+      return updatedTask;
     },
 
-    deletePost: (_, { id }) => {
-      const postIndex = posts.findIndex(post => post.id === id);
-      if (postIndex === -1) {
+    deleteTask: (_, { id }) => {
+      const taskIndex = tasks.findIndex(task => task.id === id);
+      if (taskIndex === -1) {
         return false;
       }
 
-      // Remove associated comments
-      comments = comments.filter(comment => comment.postId !== id);
-      
-      // Remove post
-      posts.splice(postIndex, 1);
+      tasks.splice(taskIndex, 1);
       
       // Publish to subscribers
-      pubsub.publish('POST_DELETED', { postDeleted: id });
+      pubsub.publish('TASK_DELETED', { taskDeleted: id });
       
-      return true;
-    },
-
-    createComment: (_, { postId, content, author }) => {
-      const post = posts.find(p => p.id === postId);
-      if (!post) {
-        throw new Error('Post not found');
-      }
-
-      const newComment = {
-        id: uuidv4(),
-        postId,
-        content,
-        author,
-        createdAt: new Date().toISOString(),
-      };
-      
-      comments.push(newComment);
-      
-      // Publish to subscribers
-      pubsub.publish('COMMENT_ADDED', { commentAdded: newComment });
-      
-      return newComment;
-    },
-
-    deleteComment: (_, { id }) => {
-      const commentIndex = comments.findIndex(comment => comment.id === id);
-      if (commentIndex === -1) {
-        return false;
-      }
-
-      comments.splice(commentIndex, 1);
       return true;
     },
   },
 
   Subscription: {
-    postAdded: {
-      subscribe: () => pubsub.asyncIterator(['POST_ADDED']),
+    taskAdded: {
+      subscribe: () => pubsub.asyncIterator(['TASK_ADDED']),
     },
-    commentAdded: {
-      subscribe: () => pubsub.asyncIterator(['COMMENT_ADDED']),
+    taskUpdated: {
+      subscribe: () => pubsub.asyncIterator(['TASK_UPDATED']),
     },
-    postUpdated: {
-      subscribe: () => pubsub.asyncIterator(['POST_UPDATED']),
-    },
-    postDeleted: {
-      subscribe: () => pubsub.asyncIterator(['POST_DELETED']),
+    taskDeleted: {
+      subscribe: () => pubsub.asyncIterator(['TASK_DELETED']),
     },
   },
 };
@@ -231,10 +227,10 @@ async function startServer() {
   const PORT = process.env.PORT || 4000;
   
   const httpServer = app.listen(PORT, () => {
-    console.log(`🚀 GraphQL API Server running on port ${PORT}`);
+    console.log(`🚀 Task Service (GraphQL API) running on port ${PORT}`);
     console.log(`🔗 GraphQL endpoint: http://localhost:${PORT}${server.graphqlPath}`);
     console.log(`📊 GraphQL Playground: http://localhost:${PORT}${server.graphqlPath}`);
-    console.log(`📡 Subscriptions ready`);
+    console.log(`📡 Real-time subscriptions ready`);
   });
 
   // Setup subscriptions
@@ -253,18 +249,17 @@ async function startServer() {
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
-    service: 'graphql-api',
+    service: 'Task Service (GraphQL API)',
     timestamp: new Date().toISOString(),
     data: {
-      posts: posts.length,
-      comments: comments.length
+      tasks: tasks.length
     }
   });
 });
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error('GraphQL API Error:', err);
+  console.error('Task Service Error:', err);
   res.status(500).json({ 
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
@@ -272,6 +267,6 @@ app.use((err, req, res, next) => {
 });
 
 startServer().catch(error => {
-  console.error('Failed to start GraphQL server:', error);
+  console.error('Failed to start Task Service:', error);
   process.exit(1);
 });
