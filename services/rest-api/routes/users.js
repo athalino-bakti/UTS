@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { validateUser, validateUserUpdate } = require('../middleware/validation');
 
@@ -10,6 +11,7 @@ let users = [
     id: '1',
     name: 'John Doe',
     email: 'john@example.com',
+    password: bcrypt.hashSync('password123', 10), // hashed password
     age: 30,
     role: 'admin',
     createdAt: new Date().toISOString(),
@@ -19,6 +21,7 @@ let users = [
     id: '2',
     name: 'Jane Smith',
     email: 'jane@example.com',
+    password: bcrypt.hashSync('password123', 10), // hashed password
     age: 25,
     role: 'user',
     createdAt: new Date().toISOString(),
@@ -44,6 +47,9 @@ router.get('/', (req, res) => {
       user.email.toLowerCase().includes(search.toLowerCase())
     );
   }
+  
+  // Remove passwords from response
+  filteredUsers = filteredUsers.map(({ password, ...user }) => user);
   
   // If pagination params provided, return paginated response
   if (page && limit) {
@@ -78,7 +84,9 @@ router.get('/:id', (req, res) => {
     });
   }
   
-  res.json(user);
+  // Remove password from response
+  const { password, ...userWithoutPassword } = user;
+  res.json(userWithoutPassword);
 });
 
 // POST /api/users - Create new user
@@ -108,7 +116,10 @@ router.post('/', validateUser, (req, res) => {
   
   res.status(201).json({
     message: 'User created successfully',
-    user: newUser
+    user: {
+      ...newUser,
+      password: undefined // Remove password from response
+    }
   });
 });
 
@@ -149,7 +160,10 @@ router.put('/:id', validateUserUpdate, (req, res) => {
   
   res.json({
     message: 'User updated successfully',
-    user: updatedUser
+    user: {
+      ...updatedUser,
+      password: undefined // Remove password from response
+    }
   });
 });
 
@@ -168,8 +182,12 @@ router.delete('/:id', (req, res) => {
   
   res.json({
     message: 'User deleted successfully',
-    user: deletedUser
+    user: {
+      ...deletedUser,
+      password: undefined // Remove password from response
+    }
   });
 });
 
 module.exports = router;
+module.exports.users = users;

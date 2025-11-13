@@ -1,6 +1,4 @@
 # Development environment
-version: '3.8'
-
 services:
   # REST API Service
   rest-api:
