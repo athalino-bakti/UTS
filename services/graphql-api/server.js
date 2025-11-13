@@ -200,6 +200,9 @@ const resolvers = {
 };
 
 async function startServer() {
+  // Create HTTP server first
+  const httpServer = require('http').createServer(app);
+  
   // Create Apollo Server
   const server = new ApolloServer({
     typeDefs,
@@ -226,15 +229,12 @@ async function startServer() {
 
   const PORT = process.env.PORT || 4000;
   
-  const httpServer = app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Task Service (GraphQL API) running on port ${PORT}`);
     console.log(`🔗 GraphQL endpoint: http://localhost:${PORT}${server.graphqlPath}`);
     console.log(`📊 GraphQL Playground: http://localhost:${PORT}${server.graphqlPath}`);
     console.log(`📡 Real-time subscriptions ready`);
   });
-
-  // Setup subscriptions
-  server.installSubscriptionHandlers(httpServer);
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
